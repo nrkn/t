@@ -1,0 +1,25 @@
+{
+  "name": "@nrkn/t",
+  "version": "0.0.1",
+  "description": "Runtime type DSL with TS inference",
+  "main": "dist/index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/nrkn/t.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "MIT",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/nrkn/t/issues"
+  },
+  "homepage": "https://github.com/nrkn/t#readme",
+  "devDependencies": {
+    "@types/ajv": "^0.0.5",
+    "ajv": "^8.17.1"
+  }
+}
