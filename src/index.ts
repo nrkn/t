@@ -84,18 +84,24 @@ export const META: unique symbol = Symbol('meta')
 // Flattens intersections at the top level
 export type Simplify<T> = { [K in keyof T]: T[K] } & {}
 
-// Recursively simplifies (good for nested objects)
+type DeepSimplifyTuple<T extends readonly unknown[]> =
+  T extends readonly []
+    ? []
+    : T extends readonly [infer H, ...infer R]
+      ? [DeepSimplify<H>, ...DeepSimplifyTuple<R>]
+      : T extends ReadonlyArray<infer U>
+        ? DeepSimplify<U>[]
+        : T
+
 export type DeepSimplify<T> =
-  T extends (...args: any) => any ? T
-  // tuple (readonly)
-  : T extends readonly [any, ...any[]] ? { [I in keyof T]: DeepSimplify<T[I]> }
-  // tuple (mutable)
-  : T extends [any, ...any[]] ? { [I in keyof T]: DeepSimplify<T[I]> }
-  // plain array
-  : T extends ReadonlyArray<infer U> ? DeepSimplify<U>[]
-  // objects
-  : T extends object ? { [K in keyof T]: DeepSimplify<T[K]> } & {}
-  : T
+  T extends (...args: any) => any
+    ? T
+    : T extends readonly unknown[]
+      // handles tuples (with or without rest) *and* plain arrays
+      ? DeepSimplifyTuple<T>
+      : T extends object
+        ? { [K in keyof T]: DeepSimplify<T[K]> } & {}
+        : T
 
 // NOTE: no index signature here on purpose; 
 // we intersect concrete shapes per factory
@@ -103,7 +109,20 @@ export type Schema<T> = { readonly [SCHEMA]: true; readonly __t?: T }
 
 export type InferFromRaw<S> = S extends { __t?: infer T } ? T : never
 
-export type InferFrom<S> = DeepSimplify<InferFromRaw<S>>
+type TupleSchema<S> =
+  S extends { type: 'array'; prefixItems: readonly Schema<any>[] }
+    ? true
+    : false
+
+//export type InferFrom<S> = DeepSimplify<InferFromRaw<S>>
+export type InferFrom<S> =
+  InferFromRaw<S> extends infer T
+    ? TupleSchema<S> extends true
+      // tuple or tupRest: keep the raw tuple type
+      ? T
+      // everything else: keep using DeepSimplify
+      : DeepSimplify<T>
+    : never
 
 const brand = <T, S extends object>(o: S) => {
   Object.defineProperty(o, SCHEMA, { value: true })
@@ -694,13 +713,16 @@ const any = anyOf(bool(), nul())
 const all = allOf(obj(reqProps({ x: int() })), obj(props({ y: str() })))
 const allN = allOf(num(), int())
 
+const oTups = obj(reqProps({ a: tRest, b: t}))
+
 const oneRec = rec(one)
 
 type A = InferFrom<typeof a>
 type T = InferFrom<typeof t>
 
-// incorrectly types rest as any[] instead of str[]
 type TR = InferFrom<typeof tRest>
+
+type OTups = InferFrom<typeof oTups>
 
 type O = InferFrom<typeof o>
 type N = InferFrom<typeof n>
