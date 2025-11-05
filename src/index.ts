@@ -1,16 +1,19 @@
 // nb - temp while testing - later, will only be used in src/tests
 import Ajv from 'ajv'
 
-// json-schema-mini-dsl.ts 
+// @nrkn/t
+// json schema mini dsl
 
 /*
+  notes, todo etc
+
   deliberately excludes:
 
   $ref, $defs, definitions
   not/if/then/else
   dependencies & related
   contentMediaType/contentEncoding
-  unevaluated*
+  unevaluated* 
 
   todo:
 
@@ -22,33 +25,33 @@ import Ajv from 'ajv'
   Strong preference for making meta need to be tagged to avoid ambiguity.
   ~~DECISION: make meta tagged explicitly to avoid ambiguity.~~ DONE
 
-  2. we only handle `default` for primitives - it should be possible to handle 
-  `default` for objects/arrays too - preferably with type inference disallowing 
-  incompatible default values
-  DECISION: implement default for objects/arrays too
+  ~~2. we only handle `default` for primitives~~ - it should be possible to 
+  handle `default` for objects/arrays too - preferably with type inference 
+  disallowing incompatible default values
+  ~~DECISION: implement default for objects/arrays too~~ DONE
 
-  3. we don't handle examples at all yet - same as default but an array - 
+  ~~3. we don't handle examples at all yet~~ - same as default but an array - 
   actually, do examples have to match the schema? Can we eg have an example of 
   how *not* to use a schema, eg could be used in fixtures for tests, somehow
   mark expect pass/fail for each example in examples? Probably out of scope for 
   now though. I think we should just make examples jsonish
-  DECISION: implement examples as jsonish[] - consider in future allowing a flag
-  or similar so that users can choose to force valid examples or not.
+  ~~DECISION: implement examples as jsonish[] - consider in future allowing a flag
+  or similar so that users can choose to force valid examples or not.~~ DONE
 
-  4. arrays - missing attributes; contains, minContains, maxContains - 
+  ~~4. arrays - missing attributes; contains, minContains, maxContains~~ - 
   ~~investigate if any issues around implementation or typing implications~~ 
   Looked into it, seems like we can just add them to ArrayAttributes.
-  DECISION: just add them to ArrayAttributes.
+  ~~DECISION: just add them to ArrayAttributes.~~ DONE
 
-  5. objects - like arrays, missing attributes; propertyNames, 
-  patternProperties, minProperties, maxProperties - ~~extend object attr, or 
+  ~~5. objects - like arrays, missing attributes; propertyNames, 
+  patternProperties, minProperties, maxProperties~~ - ~~extend object attr, or 
   extend obj/rec or add new mnemonic function helpers ala rec or...?~~
   As above, just add them to ObjectAttributes.
-  DECISION: just add them to ObjectAttributes.
+  ~~DECISION: just add them to ObjectAttributes.~~ DONE
 
   ~~6. strings - add format to string attributes - as union of known formats?~~
   
-  7. tupRest - inconsistent with tup - syntax could be exactly the same as tup 
+  ~~7. tupRest - inconsistent with tup~~ - syntax could be exactly the same as tup 
   with the last arg being treated as the rest schema OR it takes a tup as first 
   arg and rest schema as second arg eg `tupRest( tup( num(), num() ), str() )` 
   - kinda like the idea of helpers that extend existing types - where else could 
@@ -56,24 +59,35 @@ import Ajv from 'ajv'
   be tup([ ...schemas]) instead to make it more consistent with tupRest? Leaning
   slightly toward keeping tupRest with the clean api and making tup take a tuple
   of schema for consistency.
-  DECISION: keep tupRest as is for clean api, change tup to take array of
-  schemas for consistency.
+  ~~DECISION: keep tupRest as is for clean api, change tup to take array of
+  schemas for consistency.~~ DONE
 
-  8. consider excluding oneOf - doesn't map well to ts, saying it's a union is
+  ~~8. consider excluding oneOf~~ - doesn't map well to ts, saying it's a union is
   kinda misleading since oneOf fails if multiple match - maybe we should only
   use anyOf/allOf? Or does it not matter because it's fine to only catch that at
   runtime? Leaning slightly toward the latter. Tricky, but after consideration,
   leading toward keeping oneOf for minimal surprises when using the dsl.
-  DECISION: keep oneOf.
+  ~~DECISION: keep oneOf.~~ DONE
 
-  9. should we allow the features we deliberately exclude but just ignore them
-  for typing purposes? Eg $ref included === parent is Schema<any> etc?
+  9. should we allow the features we deliberately exclude (list above) but just 
+  ignore them for typing purposes? Eg $ref included === parent is Schema<any> 
+  etc?
   No decision yet but leaning strongly towards allowing but ignoring for typing.
+  DECISION: yes - allow but ignore for typing - but in next version. TODO
 
-  10. consider narrowing obj overloads, not sure if we should allow empty 
+  ~~10. consider narrowing obj overloads~~, not sure if we should allow empty 
   objects although they do have some use with eg using patternProperties 
   attributes only - are these better served by using special helpers ala rec?
   Or best left as-is for flexibility?
+  ~~DECISION: keep as is for flexibility.~~ DONE
+
+  11. consider allowing unbranded meta wherever it cannot be ambiguous - 
+  suspect that this is everywhere that doesn't accept JSONish values directly
+  (so everywhere except enu/con?) - would be more ergonomic - but still accept 
+  the branded form for consistency.
+
+  12. speaking of consistency - consider allowing array form for enu to align
+  with tup/tupRest 
 */
 
 // ---------- core brands & utils ----------
@@ -86,22 +100,22 @@ export type Simplify<T> = { [K in keyof T]: T[K] } & {}
 
 type DeepSimplifyTuple<T extends readonly unknown[]> =
   T extends readonly []
-    ? []
-    : T extends readonly [infer H, ...infer R]
-      ? [DeepSimplify<H>, ...DeepSimplifyTuple<R>]
-      : T extends ReadonlyArray<infer U>
-        ? DeepSimplify<U>[]
-        : T
+  ? []
+  : T extends readonly [infer H, ...infer R]
+  ? [DeepSimplify<H>, ...DeepSimplifyTuple<R>]
+  : T extends ReadonlyArray<infer U>
+  ? DeepSimplify<U>[]
+  : T
 
 export type DeepSimplify<T> =
   T extends (...args: any) => any
-    ? T
-    : T extends readonly unknown[]
-      // handles tuples (with or without rest) *and* plain arrays
-      ? DeepSimplifyTuple<T>
-      : T extends object
-        ? { [K in keyof T]: DeepSimplify<T[K]> } & {}
-        : T
+  ? T
+  : T extends readonly unknown[]
+  // handles tuples (with or without rest) *and* plain arrays
+  ? DeepSimplifyTuple<T>
+  : T extends object
+  ? { [K in keyof T]: DeepSimplify<T[K]> } & {}
+  : T
 
 // NOTE: no index signature here on purpose; 
 // we intersect concrete shapes per factory
@@ -111,18 +125,18 @@ export type InferFromRaw<S> = S extends { __t?: infer T } ? T : never
 
 type TupleSchema<S> =
   S extends { type: 'array'; prefixItems: readonly Schema<any>[] }
-    ? true
-    : false
+  ? true
+  : false
 
 //export type InferFrom<S> = DeepSimplify<InferFromRaw<S>>
 export type InferFrom<S> =
   InferFromRaw<S> extends infer T
-    ? TupleSchema<S> extends true
-      // tuple or tupRest: keep the raw tuple type
-      ? T
-      // everything else: keep using DeepSimplify
-      : DeepSimplify<T>
-    : never
+  ? TupleSchema<S> extends true
+  // tuple or tupRest: keep the raw tuple type
+  ? T
+  // everything else: keep using DeepSimplify
+  : DeepSimplify<T>
+  : never
 
 const brand = <T, S extends object>(o: S) => {
   Object.defineProperty(o, SCHEMA, { value: true })
@@ -157,6 +171,7 @@ export type Metadata = DollarExt & {
   $id?: string
   title?: string
   description?: string
+  examples?: JSONish[]
   $comment?: string
 }
 
@@ -186,12 +201,17 @@ export type ObjectAttributes = Metadata & {
   additionalProperties?: boolean | Schema<any>
   minProperties?: number
   maxProperties?: number
+  propertyNames?: Schema<string>
+  patternProperties?: Record<string, Schema<any>>
 }
 
 export type ArrayAttributes = Metadata & {
   minItems?: number
   maxItems?: number
   uniqueItems?: boolean
+  contains?: Schema<any>
+  minContains?: number
+  maxContains?: number
 }
 
 // Tuple-specific attributes (currently mirrors ArrayAttributes for symmetry)
@@ -251,9 +271,6 @@ const makeProps = <
   return env
 }
 
-const isProps = (x: unknown): x is PropsEnvelope<any, any> =>
-  !!x && typeof x === 'object' && (x as any)[PROPS] === true
-
 // optional with required keys specified
 export const props = <P extends PropMap, const R extends RequiredKeys<P>>(
   p: P, ...req: R
@@ -278,13 +295,13 @@ type ObjFn = {
     Readonly<ObjectAttributes>
 
   <M extends ObjectAttributes, P extends PropMap, R extends RequiredKeys<P>>(
-    meta: Meta<M>, env: PropsEnvelope<P, R>
+    meta: Meta<M & WithDefault<BuildObject<P, R>>>, env: PropsEnvelope<P, R>
   ): Schema<BuildObject<P, R>> &
     Readonly<{ type: 'object'; properties: P; required?: R }> &
     Readonly<ObjectAttributes>
 
   <M extends ObjectAttributes>(
-    meta: Meta<M>
+    meta: Meta<M & WithDefault<{}>>
   ): Schema<{}> & Readonly<{ type: 'object'; properties: {} }> &
     Readonly<ObjectAttributes>
 }
@@ -322,7 +339,7 @@ type ArrFn = {
   ): Schema<InferFromRaw<S>[]> & Readonly<{ type: 'array'; items: S }>
 
   <M extends ArrayAttributes, S extends Schema<any>>(
-    meta: Meta<M>, schema: S
+    meta: Meta<M & WithDefault<InferFromRaw<S>[]>>, schema: S
   ): Schema<InferFromRaw<S>[]> & Readonly<{ type: 'array'; items: S } &
     ArrayAttributes>
 }
@@ -382,20 +399,49 @@ type TupFn = {
     meta: Meta<M>, ...schemas: E
   ): Schema<Mutable<TupleElems<E>>> & Readonly<TupleStaticAttributes<E> &
     TupleAttributes>
+
+  <const E extends SchemaArgs>(
+    schemas: readonly [...E]
+  ): Schema<Mutable<TupleElems<E>>> & Readonly<TupleStaticAttributes<E>>
+
+  <M extends TupleAttributes, const E extends SchemaArgs>(
+    meta: Meta<M>, schemas: readonly [...E]
+  ): Schema<Mutable<TupleElems<E>>> & Readonly<TupleStaticAttributes<E> &
+    TupleAttributes>
 }
 
 export const tup: TupFn = (a?: unknown, ...rest: unknown[]): any => {
   let meta: TupleAttributes | undefined
   const schemas: Schema<any>[] = []
 
+  const pushFromArray = (arr: unknown[]) => {
+    for (const el of arr) {
+      if (isSchema(el)) schemas.push(el)
+    }
+  }
+
   if (a && !isSchema(a)) {
-    if (isMeta(a)) meta = a as TupleAttributes
+    if (isMeta(a)) {
+      meta = a as TupleAttributes
+      // Support array form when meta is first arg: tup(meta, [s1, s2])
+      if (rest.length && Array.isArray(rest[0])) {
+        pushFromArray(rest[0] as unknown[])
+      }
+    } else if (Array.isArray(a)) {
+      // Support array form: tup([s1, s2])
+      pushFromArray(a as unknown[])
+    }
   } else if (isSchema(a)) {
+    // Variadic form: tup(s1, s2, ...)
     schemas.push(a)
+  } else if (Array.isArray(a)) {
+    // Support array form when first arg is array literal
+    pushFromArray(a as unknown[])
   }
 
   for (const r of rest) {
     if (isSchema(r)) schemas.push(r)
+    else if (Array.isArray(r)) pushFromArray(r as unknown[])
   }
 
   if (schemas.length === 0) {
@@ -585,7 +631,7 @@ export const anyOf: AnyOfFn = (a?: unknown, ...rest: unknown[]): any => {
   const schemas: Schema<any>[] = []
 
   if (a && !isSchema(a)) {
-    if (isMeta(a)) meta = a as Metadata
+    if (isMeta(a)) meta = a
   } else if (isSchema(a)) {
     schemas.push(a)
   }
@@ -608,7 +654,7 @@ export const oneOf: OneOfFn = (a?: unknown, ...rest: unknown[]): any => {
   const schemas: Schema<any>[] = []
 
   if (a && !isSchema(a)) {
-    if (isMeta(a)) meta = a as Metadata
+    if (isMeta(a)) meta = a
   } else if (isSchema(a)) {
     schemas.push(a)
   }
@@ -661,6 +707,9 @@ const objWithMeta = obj(
 const uint8Arr = arr(uint8)
 const uint8ArrMeta = arr(meta({ title: 'Uint8[]' }), uint8)
 const uint8Tup = tup(uint8, uint8)
+// New array-form overloads for tup
+const uint8TupArr = tup([uint8, uint8])
+const uint8TupArrMeta = tup(meta({ title: 'Uint8 pair' }), [uint8, uint8])
 
 const enumColor = enu('red', 'orange', 'yellow')
 const conFixed = con('fixed')
@@ -668,6 +717,22 @@ const conFixed = con('fixed')
 const uint8SpanArray = arr(uint8Span)
 
 const uint8Rec = rec(uint8)
+
+// minimal examples demonstrating typed defaults for objects and arrays
+const objWithDefault = obj(
+  meta({ default: { a: 1 } }),
+  props({ a: num() }, 'a')
+)
+
+const objWithDefault2 = obj(
+  meta({ default: { a: 1 } }),
+  props({ a: num() }, 'a')
+)
+
+const arrWithDefault = arr(
+  meta({ default: [1, 2, 3] }),
+  num()
+)
 
 type Uint8 = InferFrom<typeof uint8>
 type Uint8Span = InferFrom<typeof uint8Span>
@@ -691,6 +756,8 @@ console.log('u8ss is valid:', isValid)
 type Uint8Arr = InferFrom<typeof uint8Arr>
 type Uint8ArrMeta = InferFrom<typeof uint8ArrMeta>
 type Uint8Tup = InferFrom<typeof uint8Tup>
+type Uint8TupArr = InferFrom<typeof uint8TupArr>
+type Uint8TupArrMeta = InferFrom<typeof uint8TupArrMeta>
 type ObjMeta = InferFrom<typeof objWithMeta>
 
 type Uint8SpanArray = InferFrom<typeof uint8SpanArray>
@@ -713,7 +780,7 @@ const any = anyOf(bool(), nul())
 const all = allOf(obj(reqProps({ x: int() })), obj(props({ y: str() })))
 const allN = allOf(num(), int())
 
-const oTups = obj(reqProps({ a: tRest, b: t}))
+const oTups = obj(reqProps({ a: tRest, b: t }))
 
 const oneRec = rec(one)
 
